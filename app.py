@@ -1,45 +1,45 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 import yt_dlp
-import threading
+import os
 
 app = Flask(__name__)
-download_progress = {}
 
-def download_video(url):
-    ydl_opts = {
-        'format': 'best',
-        'outtmpl': '%(title)s.%(ext)s',
-        'progress_hooks': [progress_hook],
-        'cookies': 'cookies.txt'
-    }
+DOWNLOAD_DIR = 'downloads'
+
+@app.route('/download', methods=['POST'])
+def download_video():
+    url = request.json.get('url')
+    if not url:
+        return jsonify({"error": "URL is required"}), 400
     
+    # Create download directory if it doesn't exist
+    if not os.path.exists(DOWNLOAD_DIR):
+        os.makedirs(DOWNLOAD_DIR)
+
+    # Define the output file path
+    output_path = os.path.join(DOWNLOAD_DIR, '%(title)s.%(ext)s')
+
+    # Download the video
     try:
+        ydl_opts = {
+            'outtmpl': output_path,
+            'progress_hooks': [download_progress_hook],
+            'noplaylist': True,
+        }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
-    except yt_dlp.utils.DownloadError as e:
-        print(f"Download error: {str(e)}")
+        return jsonify({"message": "Download completed"}), 200
     except Exception as e:
-        print(f"An error occurred: {str(e)}")
-
-def progress_hook(d):
-    if d['status'] == 'downloading':
-        download_progress['progress'] = d['_percent_str']
-    elif d['status'] == 'finished':
-        download_progress['progress'] = '100%'
-
-@app.route('/download', methods=['GET'])
-def download():
-    url = request.args.get('url')
-    if url:
-        download_thread = threading.Thread(target=download_video, args=(url,))
-        download_thread.start()
-        return jsonify({'message': 'Download started.'}), 200
-    else:
-        return jsonify({'error': 'URL parameter is required.'}), 400
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/progress', methods=['GET'])
 def progress():
-    return jsonify({'progress': download_progress.get('progress', '0%')}), 200
+    # Return the current download progress (implement this based on your progress tracking)
+    return jsonify({"progress": "0%"}), 200
+
+def download_progress_hook(d):
+    if d['status'] == 'finished':
+        print(f"\nDone downloading video: {d['filename']}")
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0')
