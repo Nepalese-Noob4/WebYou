@@ -20,6 +20,10 @@ def progress_hook(d):
     if d['status'] == 'downloading':
         download_progress = d.get('downloaded_bytes', 0) / d.get('total_bytes', 1) * 100
 
+@app.route('/')
+def home():
+    return 'Flask application is running!'
+
 @app.route('/download')
 def download_video_route():
     url = request.args.get('url')
