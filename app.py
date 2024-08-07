@@ -1,44 +1,45 @@
-from flask import Flask, send_file, request, jsonify
+from flask import Flask, request, jsonify
 import yt_dlp
-import os
 import threading
 
 app = Flask(__name__)
-download_progress = 0
+download_progress = {}
 
-def download_video(url, filename):
-    global download_progress
+def download_video(url):
     ydl_opts = {
-        'outtmpl': filename,
-        'progress_hooks': [progress_hook]
+        'format': 'best',
+        'outtmpl': '%(title)s.%(ext)s',
+        'progress_hooks': [progress_hook],
+        'cookies': 'cookies.txt'
     }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([url])
+    
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+    except yt_dlp.utils.DownloadError as e:
+        print(f"Download error: {str(e)}")
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
 
 def progress_hook(d):
-    global download_progress
     if d['status'] == 'downloading':
-        download_progress = d.get('downloaded_bytes', 0) / d.get('total_bytes', 1) * 100
+        download_progress['progress'] = d['_percent_str']
+    elif d['status'] == 'finished':
+        download_progress['progress'] = '100%'
 
-@app.route('/')
-def home():
-    return 'Flask application is running!'
-
-@app.route('/download')
-def download_video_route():
+@app.route('/download', methods=['GET'])
+def download():
     url = request.args.get('url')
-    filename = 'downloaded_video.mp4'
-    
-    if not os.path.exists(filename):
-        download_thread = threading.Thread(target=download_video, args=(url, filename))
+    if url:
+        download_thread = threading.Thread(target=download_video, args=(url,))
         download_thread.start()
-        return jsonify({'message': 'Downloading video...', 'filename': filename})
+        return jsonify({'message': 'Download started.'}), 200
+    else:
+        return jsonify({'error': 'URL parameter is required.'}), 400
 
-    return send_file(filename, as_attachment=True)
-
-@app.route('/progress')
+@app.route('/progress', methods=['GET'])
 def progress():
-    return jsonify({'progress': download_progress})
+    return jsonify({'progress': download_progress.get('progress', '0%')}), 200
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000)
