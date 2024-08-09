@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebYou Video Downloader</title>
+</head>
+<body>
+    <h1>WebYou Video Downloader</h1>
+    <form id="download-form">
+        <label for="url">YouTube Video URL:</label>
+        <input type="text" id="url" name="url" required>
+        <br><br>
+        <label for="name">Video Name:</label>
+        <input type="text" id="name" name="name" required>
+        <br><br>
+        <button type="submit">Download Video</button>
+    </form>
+    <br>
+    <h3 id="status"></h3>
+    <div id="progress"></div>
+
+    <script>
+        document.getElementById('download-form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const url = document.getElementById('url').value;
+            const name = document.getElementById('name').value;
+
+            fetch('/download', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ 'url': url, 'name': name })
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('status').innerText = data.status;
+                if (data.status === 'Downloading started') {
+                    checkProgress(name);
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        });
+
+        function checkProgress(videoName) {
+            fetch(`/progress/${videoName}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'downloading') {
+                    document.getElementById('progress').innerText = 
+                        `Progress: ${data.progress}\nDownloaded: ${(data.downloaded_bytes / 1048576).toFixed(2)} MB\n` + 
+                        `Total Size: ${(data.total_bytes / 1048576).toFixed(2)} MB\nSpeed: ${data.speed}\nETA: ${data.eta}`;
+                    setTimeout(() => checkProgress(videoName), 2000);
+                } else if (data.status === 'completed') {
+                    document.getElementById('progress').innerText = 'Download completed!';
+                } else if (data.status === 'error') {
+                    document.getElementById('progress').innerText = 'Error: ' + data.message;
+                } else {
+                    document.getElementById('progress').innerText = 'Download not found.';
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+    </script>
+</body>
+</html>
